@@ -39,9 +39,22 @@ from sugar.graphics.toolbutton import ToolButton
 from sugar.graphics.palette import Palette
 import ConfigParser
 import os.path
+import pango
+
+import platform, sys
+from ctypes import cdll
+
+if platform.machine().startswith('arm'):
+    pass # FIXME
+else:
+    if platform.architecture()[0] == '64bit':
+        vte_path = "x86-64"
+    else:
+        vte_path = "x86"
+    vte = cdll.LoadLibrary("lib/%s/libvte.so.9" % vte_path)
+    sys.path.append("lib/%s" % vte_path)
 
 import vte
-import pango
 
 class FrotzActivity(activity.Activity):
 
@@ -113,7 +126,16 @@ class FrotzActivity(activity.Activity):
             # print a welcome banner and pause for a moment
             # that way the end user will have a chance to see which version of frotz we are using
             # and which file we are loading
-            self._vte.feed_child("cd '%s'; clear; frotz|head -3 ; echo '\nLoading %s...'; sleep 2; frotz '%s'; exit\n" % (save_dir, os.path.basename(game_file), game_file))
+
+            if platform.machine().startswith('arm'):
+                logging.error('ARM not supported, yet') # FIXME
+                sys.exit(0)
+            else:
+                if platform.architecture()[0] == '64bit':
+                    self._vte.feed_child("cd '%s'; clear; frotz64|head -3 ; echo '\nLoading %s...'; sleep 2; frotz64 '%s'; exit\n" % (save_dir, os.path.basename(game_file), game_file))
+                else:
+                    self._vte.feed_child("cd '%s'; clear; frotz32|head -3 ; echo '\nLoading %s...'; sleep 2; frotz32 '%s'; exit\n" % (save_dir, os.path.basename(game_file), game_file))
+            
             self.game_started = True
         
     def read_file(self, file_path):
