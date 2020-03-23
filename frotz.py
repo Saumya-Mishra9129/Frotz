@@ -23,6 +23,7 @@
 #     along with Frotz.activity.  If not, see <http://www.gnu.org/licenses/>.
 import gi
 gi.require_version('Gtk', '3.0')
+gi.require_version('Vte', '2.91')
 import os
 import sys
 
