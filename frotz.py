@@ -34,6 +34,7 @@ from gi.repository import Gtk, Gdk,GLib
 import dbus
 
 from sugar3.activity import activity
+from sugar3.graphics.toolbarbox import ToolbarBox
 from sugar3.activity import activityfactory
 from sugar3 import env
 from sugar3.graphics.toolbutton import ToolButton
@@ -68,7 +69,7 @@ class FrotzActivity(activity.Activity):
         self.set_title(_('Frotz'))
         self.connect('key-press-event', self.__key_press_cb)
 
-        toolbox = activity.ActivityToolbox(self)
+        toolbox = ToolbarBox()
 
         self._edit_toolbar = activity.EditToolbar()
         toolbox.add_toolbar(_('Edit'), self._edit_toolbar)
