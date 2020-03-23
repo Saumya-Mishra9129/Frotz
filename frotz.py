@@ -50,11 +50,11 @@ if platform.machine().startswith('arm'):
     pass # FIXME
 else:
     if platform.architecture()[0] == '64bit':
-        vte_path = "x86-64"
+        vte_path = "x86_64"
     else:
         vte_path = "x86"
-    vte = cdll.LoadLibrary("lib/%s/libvte.so.9" % vte_path)
-    sys.path.append("lib/%s" % vte_path)
+    vte = cdll.LoadLibrary("/usr/lib/"+vte_path+"-linux-gnu/libvte-2.91.so.0")
+    sys.path.append("/usr/lib/"+vte_path+"-linux-gnu" )
 
 
 
