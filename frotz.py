@@ -25,13 +25,15 @@
 import os
 import sys
 import gi
-gi.require_version('Gtk','3.0')
-gi.require_version('Gdk','3.0')
-gi.require_version('Vte','2.91')
+from sugar3.graphics.toolbarbox import ToolbarBox, ToolbarButton
+
+gi.require_version('Gtk', '3.0')
+gi.require_version('Gdk', '3.0')
+gi.require_version('Vte', '2.91')
 import logging
 from gettext import gettext as _
 
-from gi.repository import Gtk,GLib,Vte,Gdk
+from gi.repository import Gtk, GLib, Vte, Gdk
 import dbus
 
 from sugar3.activity import activity
@@ -39,7 +41,7 @@ from sugar3.activity import activityfactory
 from sugar3 import env
 from sugar3.graphics.toolbutton import ToolButton
 from sugar3.graphics.toolbox import Toolbox
-from sugar3.activity.widgets import EditToolbar
+from sugar3.activity.widgets import EditToolbar, ActivityToolbarButton
 from sugar3.graphics.palette import Palette
 import configparser
 import os.path
@@ -48,28 +50,38 @@ from gi.repository import Pango
 import platform, sys
 from ctypes import cdll
 
+
 class FrotzActivity(activity.Activity):
 
     def __init__(self, handle):
         activity.Activity.__init__(self, handle)
-        
+
         logging.debug('Starting the Frotz activity')
-        
+
         self.set_title(_('Frotz'))
         self.connect('key-press-event', self.__key_press_cb)
 
-        toolbox = Toolbox()
+        self.toolbox = ToolbarBox()
 
-        self._edit_toolbar = EditToolbar()
-        toolbox.add_toolbar(_('Edit'), self._edit_toolbar)
-        self._edit_toolbar.show()
+        self.activity_toolbar_button = ActivityToolbarButton(self)
+
+        edit_toolbar = Gtk.Toolbar()
+        self.edit_toolbar_button = ToolbarButton(label=_('Edit'),
+                                                 page=edit_toolbar,
+                                                 icon_name='toolbar-edit')
+
+        self.activity_toolbar_button.show()
+        self.toolbox.toolbar.insert(self.activity_toolbar_button, -1)
+        self.edit_toolbar_button.show()
+        self.toolbox.toolbar.insert(self.edit_toolbar_button, -1)
         self._edit_toolbar.undo.props.visible = False
         self._edit_toolbar.redo.props.visible = False
         self._edit_toolbar.separator.props.visible = False
         self._edit_toolbar.copy.connect('clicked', self._copy_cb)
         self._edit_toolbar.paste.connect('clicked', self._paste_cb)
+        self.set_toolbar_box(self.toolbox)
 
-        activity_toolbar = toolbox.get_activity_toolbar()
+        activity_toolbar = self.toolbox.get_activity_toolbar()
         activity_toolbar.share.props.visible = False
         activity_toolbar.keep.props.visible = False
 
@@ -80,9 +92,10 @@ class FrotzActivity(activity.Activity):
         activity_toolbar.insert(activity_toolbar.get_games, 2)
         activity_toolbar.get_games.show()
 
-        self.set_toolbox(toolbox)
-        toolbox.show()
-        
+        edit_toolbar.show()
+        self.set_toolbox(self.toolbox)
+        self.toolbox.show()
+
         box = Gtk.HBox(False, 4)
 
         self._vte = VTE()
@@ -94,22 +107,22 @@ class FrotzActivity(activity.Activity):
 
         box.pack_start(self._vte)
         box.pack_start(scrollbar, False, False, 0)
-        
+
         self.set_canvas(box)
         box.show()
-        
+
         self._vte.grab_focus()
-        
+
         self.game_started = False
         default_game_file = os.path.join(activity.get_bundle_path(), "Advent.z5")
         # when we return to the idle state, launch the default game
         # if read_file is called, that will override this
         GLib.idle_add(self.start_game, default_game_file)
-    
+
     def _quit_cb(self, foo=None):
         print("Quitting...")
         sys.exit(0)
-    
+
     def start_game(self, game_file):
         if not self.game_started:
             # cd to a persistent directory
@@ -120,16 +133,20 @@ class FrotzActivity(activity.Activity):
             # and which file we are loading
 
             if platform.machine().startswith('arm'):
-                logging.error('ARM not supported, yet') # FIXME
+                logging.error('ARM not supported, yet')  # FIXME
                 sys.exit(0)
             else:
                 if platform.architecture()[0] == '64bit':
-                    self._vte.feed_child("cd '%s'; clear; frotz64|head -3 ; echo '\nLoading %s...'; sleep 2; frotz64 '%s'; exit\n" % (save_dir, os.path.basename(game_file), game_file))
+                    self._vte.feed_child(
+                        "cd '%s'; clear; frotz64|head -3 ; echo '\nLoading %s...'; sleep 2; frotz64 '%s'; exit\n" % (
+                        save_dir, os.path.basename(game_file), game_file))
                 else:
-                    self._vte.feed_child("cd '%s'; clear; frotz32|head -3 ; echo '\nLoading %s...'; sleep 2; frotz32 '%s'; exit\n" % (save_dir, os.path.basename(game_file), game_file))
-            
+                    self._vte.feed_child(
+                        "cd '%s'; clear; frotz32|head -3 ; echo '\nLoading %s...'; sleep 2; frotz32 '%s'; exit\n" % (
+                        save_dir, os.path.basename(game_file), game_file))
+
             self.game_started = True
-        
+
     def read_file(self, file_path):
         self.start_game(file_path)
 
@@ -158,17 +175,17 @@ class FrotzActivity(activity.Activity):
                 'mime_type': 'text/uri-list',
             }
             for k, v in metadata.items():
-                jobject.metadata[k] = v # the dict.update method is missing =(
+                jobject.metadata[k] = v  # the dict.update method is missing =(
             jobject.file_path = tmpfilepath
             datastore.write(jobject)
             show_object_in_journal(jobject.object_id)
             jobject.destroy()
         finally:
-            rmtree(tmpfilepath, ignore_errors=True) # clean up!
-            
+            rmtree(tmpfilepath, ignore_errors=True)  # clean up!
+
     def _get_games_cb(self, button):
         url = 'http://wiki.laptop.org/go/Frotz/Games'
-        #activityfactory.create_with_uri('org.laptop.WebActivity', url)
+        # activityfactory.create_with_uri('org.laptop.WebActivity', url)
         self.open_url(url)
 
     def _copy_cb(self, button):
@@ -180,29 +197,30 @@ class FrotzActivity(activity.Activity):
 
     def __key_press_cb(self, window, event):
         if event.state & Gdk.ModifierType.CONTROL_MASK and event.state & Gdk.ModifierType.SHIFT_MASK:
-        
+
             if Gdk.keyval_name(event.keyval) == "C":
                 if self._vte.get_has_selection():
-                    self._vte.copy_clipboard()              
+                    self._vte.copy_clipboard()
                 return True
             elif Gdk.keyval_name(event.keyval) == "V":
                 self._vte.paste_clipboard()
                 return True
-                
+
         return False
+
 
 class VTE(Vte.Terminal):
     def __init__(self):
         Vte.Terminal.__init__(self)
         self._configure_vte()
 
-        #os.chdir(os.environ["HOME"])
+        # os.chdir(os.environ["HOME"])
         self.fork_command()
 
     def _configure_vte(self):
         conf = configparser.ConfigParser()
         conf_file = os.path.join(env.get_profile_path(), 'terminalrc')
-        
+
         if os.path.isfile(conf_file):
             f = open(conf_file, 'r')
             conf.readfp(f)
@@ -227,16 +245,16 @@ class VTE(Vte.Terminal):
         else:
             bg_color = '#FFFFFF'
             conf.set('terminal', 'bg_color', bg_color)
-        self.set_colors(Gdk.color_parse (fg_color),
-                            Gdk.color_parse (bg_color),
-                            [])
-                            
+        self.set_colors(Gdk.color_parse(fg_color),
+                        Gdk.color_parse(bg_color),
+                        [])
+
         if conf.has_option('terminal', 'cursor_blink'):
             blink = conf.getboolean('terminal', 'cursor_blink')
         else:
             blink = False
             conf.set('terminal', 'cursor_blink', blink)
-        
+
         self.set_cursor_blinks(blink)
 
         if conf.has_option('terminal', 'bell'):
@@ -245,16 +263,16 @@ class VTE(Vte.Terminal):
             bell = False
             conf.set('terminal', 'bell', bell)
         self.set_audible_bell(bell)
-        
+
         if conf.has_option('terminal', 'scrollback_lines'):
             scrollback_lines = conf.getint('terminal', 'scrollback_lines')
         else:
             scrollback_lines = 1000
             conf.set('terminal', 'scrollback_lines', scrollback_lines)
-            
+
         self.set_scrollback_lines(scrollback_lines)
         self.set_allow_bold(True)
-        
+
         if conf.has_option('terminal', 'scroll_on_keystroke'):
             scroll_key = conf.getboolean('terminal', 'scroll_on_keystroke')
         else:
@@ -268,7 +286,7 @@ class VTE(Vte.Terminal):
             scroll_output = False
             conf.set('terminal', 'scroll_on_output', scroll_output)
         self.set_scroll_on_output(scroll_output)
-        
+
         if conf.has_option('terminal', 'emulation'):
             emulation = conf.get('terminal', 'emulation')
         else:
