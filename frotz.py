@@ -41,7 +41,7 @@ from sugar3.activity import activityfactory
 from sugar3 import env
 from sugar3.graphics.toolbutton import ToolButton
 from sugar3.graphics.toolbox import Toolbox
-from sugar3.activity.widgets import EditToolbar, ActivityToolbarButton
+from sugar3.activity.widgets import EditToolbar, ActivityToolbarButton,StopButton
 from sugar3.graphics.palette import Palette
 import configparser
 import os.path
@@ -74,16 +74,16 @@ class FrotzActivity(activity.Activity):
         self.toolbox.toolbar.insert(self.activity_toolbar_button, -1)
         self.edit_toolbar_button.show()
         self.toolbox.toolbar.insert(self.edit_toolbar_button, -1)
-        self._edit_toolbar.undo.props.visible = False
-        self._edit_toolbar.redo.props.visible = False
-        self._edit_toolbar.separator.props.visible = False
-        self._edit_toolbar.copy.connect('clicked', self._copy_cb)
-        self._edit_toolbar.paste.connect('clicked', self._paste_cb)
+
+
+
+
+
         self.set_toolbar_box(self.toolbox)
 
-        activity_toolbar = self.toolbox.get_activity_toolbar()
-        activity_toolbar.share.props.visible = False
-        activity_toolbar.keep.props.visible = False
+        activity_toolbar = self.toolbox.get_toolbar()
+        
+   
 
         # Add a button that will send you to the ifarchive to get more games
         activity_toolbar.get_games = ToolButton('activity-get-games')
@@ -93,19 +93,21 @@ class FrotzActivity(activity.Activity):
         activity_toolbar.get_games.show()
 
         edit_toolbar.show()
-        self.set_toolbox(self.toolbox)
+     
         self.toolbox.show()
-
+        stop = StopButton(self) 
+        self.get_toolbar_box().toolbar.insert(stop,-1) 
+        stop.show() 
         box = Gtk.HBox(False, 4)
 
         self._vte = VTE()
         self._vte.show()
         self._vte.connect("child-exited", self._quit_cb)
 
-        scrollbar = Gtk.VScrollbar(self._vte.get_adjustment())
+        scrollbar = Gtk.VScrollbar(self._vte.get_vadjustment())
         scrollbar.show()
 
-        box.pack_start(self._vte)
+        box.pack_start(self._vte,True,True,0)
         box.pack_start(scrollbar, False, False, 0)
 
         self.set_canvas(box)
@@ -208,14 +210,18 @@ class FrotzActivity(activity.Activity):
 
         return False
 
-
+def _to_rgba(color):
+    rgba = Gdk.RGBA()
+    rgba.parse(color) 
+    return rgba
 class VTE(Vte.Terminal):
     def __init__(self):
         Vte.Terminal.__init__(self)
         self._configure_vte()
 
         # os.chdir(os.environ["HOME"])
-        self.fork_command()
+
+    
 
     def _configure_vte(self):
         conf = configparser.ConfigParser()
@@ -245,29 +251,29 @@ class VTE(Vte.Terminal):
         else:
             bg_color = '#FFFFFF'
             conf.set('terminal', 'bg_color', bg_color)
-        self.set_colors(Gdk.color_parse(fg_color),
-                        Gdk.color_parse(bg_color),
+        self.set_colors(_to_rgba(fg_color),
+                        _to_rgba(bg_color),
                         [])
 
         if conf.has_option('terminal', 'cursor_blink'):
             blink = conf.getboolean('terminal', 'cursor_blink')
         else:
-            blink = False
+            blink = None 
             conf.set('terminal', 'cursor_blink', blink)
 
-        self.set_cursor_blinks(blink)
+        self.set_cursor_blink_mode(blink)
 
         if conf.has_option('terminal', 'bell'):
             bell = conf.getboolean('terminal', 'bell')
         else:
-            bell = False
+            bell = None 
             conf.set('terminal', 'bell', bell)
         self.set_audible_bell(bell)
 
         if conf.has_option('terminal', 'scrollback_lines'):
             scrollback_lines = conf.getint('terminal', 'scrollback_lines')
         else:
-            scrollback_lines = 1000
+            scrollback_lines = "1000" 
             conf.set('terminal', 'scrollback_lines', scrollback_lines)
 
         self.set_scrollback_lines(scrollback_lines)
@@ -276,14 +282,14 @@ class VTE(Vte.Terminal):
         if conf.has_option('terminal', 'scroll_on_keystroke'):
             scroll_key = conf.getboolean('terminal', 'scroll_on_keystroke')
         else:
-            scroll_key = False
+            scroll_key = None 
             conf.set('terminal', 'scroll_on_keystroke', scroll_key)
         self.set_scroll_on_keystroke(scroll_key)
 
         if conf.has_option('terminal', 'scroll_on_output'):
             scroll_output = conf.getboolean('terminal', 'scroll_on_output')
         else:
-            scroll_output = False
+            scroll_output = None 
             conf.set('terminal', 'scroll_on_output', scroll_output)
         self.set_scroll_on_output(scroll_output)
 
@@ -292,14 +298,14 @@ class VTE(Vte.Terminal):
         else:
             emulation = 'xterm'
             conf.set('terminal', 'emulation', emulation)
-        self.set_emulation(emulation)
+    
 
         if conf.has_option('terminal', 'visible_bell'):
             visible_bell = conf.getboolean('terminal', 'visible_bell')
         else:
-            visible_bell = False
+            visible_bell = "False" 
             conf.set('terminal', 'visible_bell', visible_bell)
-        self.set_visible_bell(visible_bell)
+     
         conf.write(open(conf_file, 'w'))
 
     def on_gconf_notification(self, client, cnxn_id, entry, what):
