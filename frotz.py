@@ -8,24 +8,23 @@
 # Parts of Frotz.activity are based on code from Terminal.activity
 # Copyright (C) 2007, Eduardo Silva <edsiper@gmail.com>.
 # Copyright (C) 2008, One Laptop Per Child
-# 
+#
 #     Frotz.activity is free software: you can redistribute it and/or modify
 #     it under the terms of the GNU General Public License as published by
 #     the Free Software Foundation, either version 3 of the License, or
 #     (at your option) any later version.
-# 
+#
 #     Frotz.activity is distributed in the hope that it will be useful,
 #     but WITHOUT ANY WARRANTY; without even the implied warranty of
 #     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #     GNU General Public License for more details.
-# 
+#
 #     You should have received a copy of the GNU General Public License
 #     along with Frotz.activity.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
 import sys
 import gi
-from sugar3.graphics.toolbarbox import ToolbarBox, ToolbarButton
 
 gi.require_version('Gtk', '3.0')
 gi.require_version('Gdk', '3.0')
@@ -39,9 +38,10 @@ import dbus
 from sugar3.activity import activity
 from sugar3.activity import activityfactory
 from sugar3 import env
+from sugar3.graphics.toolbarbox import ToolbarBox, ToolbarButton
 from sugar3.graphics.toolbutton import ToolButton
 from sugar3.graphics.toolbox import Toolbox
-from sugar3.activity.widgets import EditToolbar, ActivityToolbarButton
+from sugar3.activity.widgets import EditToolbar, ActivityToolbarButton, StopButton
 from sugar3.graphics.palette import Palette
 import configparser
 import os.path
@@ -65,25 +65,30 @@ class FrotzActivity(activity.Activity):
 
         self.activity_toolbar_button = ActivityToolbarButton(self)
 
-        edit_toolbar = Gtk.Toolbar()
-        self.edit_toolbar_button = ToolbarButton(label=_('Edit'),
-                                                 page=edit_toolbar,
-                                                 icon_name='toolbar-edit')
+        self._edit_toolbar = EditToolbar()
 
-        self.activity_toolbar_button.show()
+        button = ToolbarButton()
+        button.set_page(self._edit_toolbar)
+        button.props.icon_name = 'toolbar-edit'
+        button.props.label = _('Edit')
+        self.toolbox.toolbar.insert(button, -1)
+        button.show()
+        self._edit_toolbar.show()
+
+        self.edit_toolbar.undo.props.visible = False
+        self.edit_toolbar.redo.props.visible = False
+        self.edit_toolbar.separator.props.visible = False
+        self._edit_toolbar.copy.connect('clicked', self.__copy_cb)
+        self.edit_toolbar.copy.props.accelerator = '<Ctrl><Shift>C'
+        self._edit_toolbar.paste.connect('clicked', self.__paste_cb)
+        self.edit_toolbar.paste.props.accelerator = '<Ctrl><Shift>V'
+
         self.toolbox.toolbar.insert(self.activity_toolbar_button, -1)
-        self.edit_toolbar_button.show()
-        self.toolbox.toolbar.insert(self.edit_toolbar_button, -1)
-        self._edit_toolbar.undo.props.visible = False
-        self._edit_toolbar.redo.props.visible = False
-        self._edit_toolbar.separator.props.visible = False
-        self._edit_toolbar.copy.connect('clicked', self._copy_cb)
-        self._edit_toolbar.paste.connect('clicked', self._paste_cb)
+        self.activity_toolbar_button.show()
+
         self.set_toolbar_box(self.toolbox)
 
-        activity_toolbar = self.toolbox.get_activity_toolbar()
-        activity_toolbar.share.props.visible = False
-        activity_toolbar.keep.props.visible = False
+        activity_toolbar = self.toolbox.get_toolbar()
 
         # Add a button that will send you to the ifarchive to get more games
         activity_toolbar.get_games = ToolButton('activity-get-games')
@@ -92,20 +97,22 @@ class FrotzActivity(activity.Activity):
         activity_toolbar.insert(activity_toolbar.get_games, 2)
         activity_toolbar.get_games.show()
 
-        edit_toolbar.show()
-        self.set_toolbox(self.toolbox)
         self.toolbox.show()
+        stop = StopButton(self)
+        self.get_toolbar_box().toolbar.insert(stop, -1)
+        stop.show()
 
         box = Gtk.HBox(False, 4)
 
         self._vte = VTE()
+        self._vte.set_encoding('utf-8')
         self._vte.show()
         self._vte.connect("child-exited", self._quit_cb)
 
-        scrollbar = Gtk.VScrollbar(self._vte.get_adjustment())
+        scrollbar = Gtk.VScrollbar(self._vte.get_vadjustment())
         scrollbar.show()
 
-        box.pack_start(self._vte)
+        box.pack_start(self._vte, True, True, 0)
         box.pack_start(scrollbar, False, False, 0)
 
         self.set_canvas(box)
@@ -139,11 +146,11 @@ class FrotzActivity(activity.Activity):
                 if platform.architecture()[0] == '64bit':
                     self._vte.feed_child(
                         "cd '%s'; clear; frotz64|head -3 ; echo '\nLoading %s...'; sleep 2; frotz64 '%s'; exit\n" % (
-                        save_dir, os.path.basename(game_file), game_file))
+                            save_dir, os.path.basename(game_file), game_file))
                 else:
                     self._vte.feed_child(
                         "cd '%s'; clear; frotz32|head -3 ; echo '\nLoading %s...'; sleep 2; frotz32 '%s'; exit\n" % (
-                        save_dir, os.path.basename(game_file), game_file))
+                            save_dir, os.path.basename(game_file), game_file))
 
             self.game_started = True
 
@@ -209,13 +216,19 @@ class FrotzActivity(activity.Activity):
         return False
 
 
+def _to_rgba(color):
+    rgba = Gdk.RGBA()
+    rgba.parse(color)
+    return rgba
+
+
 class VTE(Vte.Terminal):
     def __init__(self):
         Vte.Terminal.__init__(self)
         self._configure_vte()
 
         # os.chdir(os.environ["HOME"])
-        self.fork_command()
+        #self.fork_command()
 
     def _configure_vte(self):
         conf = configparser.ConfigParser()
@@ -245,8 +258,9 @@ class VTE(Vte.Terminal):
         else:
             bg_color = '#FFFFFF'
             conf.set('terminal', 'bg_color', bg_color)
-        self.set_colors(Gdk.color_parse(fg_color),
-                        Gdk.color_parse(bg_color),
+
+        self.set_colors(_to_rgba(fg_color),
+                        _to_rgba(bg_color),
                         [])
 
         if conf.has_option('terminal', 'cursor_blink'):
@@ -255,7 +269,7 @@ class VTE(Vte.Terminal):
             blink = False
             conf.set('terminal', 'cursor_blink', blink)
 
-        self.set_cursor_blinks(blink)
+        self.set_cursor_blink_mode(blink)
 
         if conf.has_option('terminal', 'bell'):
             bell = conf.getboolean('terminal', 'bell')
@@ -267,7 +281,7 @@ class VTE(Vte.Terminal):
         if conf.has_option('terminal', 'scrollback_lines'):
             scrollback_lines = conf.getint('terminal', 'scrollback_lines')
         else:
-            scrollback_lines = 1000
+            scrollback_lines = "1000"
             conf.set('terminal', 'scrollback_lines', scrollback_lines)
 
         self.set_scrollback_lines(scrollback_lines)
@@ -292,14 +306,14 @@ class VTE(Vte.Terminal):
         else:
             emulation = 'xterm'
             conf.set('terminal', 'emulation', emulation)
-        self.set_emulation(emulation)
+        # self.set_emulation(emulation)
 
         if conf.has_option('terminal', 'visible_bell'):
             visible_bell = conf.getboolean('terminal', 'visible_bell')
         else:
             visible_bell = False
             conf.set('terminal', 'visible_bell', visible_bell)
-        self.set_visible_bell(visible_bell)
+        # self.set_visible_bell(visible_bell)
         conf.write(open(conf_file, 'w'))
 
     def on_gconf_notification(self, client, cnxn_id, entry, what):
